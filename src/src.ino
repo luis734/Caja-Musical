@@ -22,23 +22,20 @@ unsigned long ultimaRespuesta = 0;
 const unsigned long intervaloPing = 100;
 const unsigned long timeoutRFID = 500;
 
-// Estructura de las TAGs
-struct RFIDTag {
-  String uid;
-  int track;
-};
-
-// BD
-RFIDTag tags[] = {
-  {"53807D12130001", 1},
-  {"537F7D12130001", 2},
-  {"537E7D12130001", 3},
-};
+// Modo ADMIN
+bool modoAdmin = false;
+String adminUID = "B4CEEF06";
+byte adminPage = 5;
 
 // ---- Prototipos de funciones ----
-int buscarTrack(String uidActual);
-bool hayTarjetaPresente(); // TODO
-void detectarNuevaTarjeta(); // TODO
+void detectarNuevaTarjeta();
+void verificarPresenciaRFID();
+String obtenerUID();
+void reproducirCancion();
+// MODO ADMIN
+void manejarModoAdmin();
+bool escribirTrackEnTarjeta(int track);
+int leerTrackDesdeTarjeta();
 
 void setup() {
   Serial.begin(115200);
@@ -54,13 +51,18 @@ void setup() {
 
   if (dfPlayer.begin(dfSerial)) {
     Serial.println("DFPlayer OK");
-    dfPlayer.volume(15);
+    dfPlayer.volume(10);
   } else {
     Serial.println("Error DFPlayer");
   }
 }
 
 void loop() {
+  if (modoAdmin) {
+    manejarModoAdmin();
+    return;
+  }
+
   detectarNuevaTarjeta();
 
   if (tarjetaPresente){
@@ -74,6 +76,24 @@ void detectarNuevaTarjeta() {
   if (!rfid.PICC_ReadCardSerial()) return;
 
   String nuevoUID = obtenerUID();
+
+  if (nuevoUID == adminUID) {
+
+    modoAdmin = !modoAdmin;
+
+    if (modoAdmin) {
+      Serial.println("=== MODO ADMIN ACTIVADO ===");
+      Serial.println("Acerca una tarjeta para programarla");
+    } else {
+      Serial.println("=== MODO ADMIN DESACTIVADO ===");
+    }
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+
+    delay(1000); // evita doble lectura accidental
+    return;
+  }
 
   if (nuevoUID != uidActual) {
     uidActual = nuevoUID;
@@ -126,7 +146,7 @@ String obtenerUID() {
 }
 
 void reproducirCancion(String uidActual) {
-  int track = buscarTrack(uidActual);
+  int track = leerTrackDesdeTarjeta();
 
   if (track != -1) {
     Serial.print("Reproduciendo track: ");
@@ -134,21 +154,121 @@ void reproducirCancion(String uidActual) {
 
     dfPlayer.play(track);
   } else {
-    Serial.print("UID no reconocido: ");
-    Serial.println(uidActual);
+    Serial.println("No se encontró track en la tarjeta");
   }
 }
 
-int buscarTrack(String uidActual) {
-  uidActual.toUpperCase();
+// FUNCIONES MODO ADMIN
+void manejarModoAdmin() {
 
-  int numTags = sizeof(tags) / sizeof(tags[0]);
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  if (!rfid.PICC_ReadCardSerial()) return;
 
-  for (int i = 0; i < numTags; i++) {
-    if (uidActual == tags[i].uid) {
-      return tags[i].track;
+  String nuevoUID = obtenerUID();
+
+  // Si vuelves a acercar la tarjeta ADMIN → salir
+  if (nuevoUID == adminUID) {
+    modoAdmin = false;
+
+    Serial.println("=== MODO ADMIN DESACTIVADO ===");
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    delay(1000);
+    return;
+  }
+
+  Serial.println("--------------------------------");
+  Serial.print("Tarjeta detectada: ");
+  Serial.println(nuevoUID);
+
+  Serial.println("Ingresa numero de track por Serial Monitor:");
+
+  // Esperar entrada por serial
+  while (!Serial.available()) {
+    delay(10);
+  }
+
+  int track = Serial.parseInt();
+
+  if (track <= 0) {
+    Serial.println("Track invalido");
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    return;
+  }
+
+  if (escribirTrackEnTarjeta(track)) {
+    Serial.print("Track guardado correctamente: ");
+    Serial.println(track);
+  } else {
+    Serial.println("Error escribiendo track");
+  }
+
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+
+  Serial.println("Acerca otra tarjeta o la ADMIN para salir");
+}
+
+bool escribirTrackEnTarjeta(int track) {
+  MFRC522::StatusCode status;
+
+  byte dataPage[4] = {0};
+
+  String trackStr = String(track);
+
+  for (int i = 0; i < trackStr.length() && i < 4; i++) {
+    dataPage[i] = trackStr[i];
+  }
+
+  status = rfid.MIFARE_Ultralight_Write(
+    adminPage,
+    dataPage,
+    4
+  );
+
+  if (status != MFRC522::STATUS_OK) {
+    Serial.println("Error escribiendo page Ultralighy");
+    return false;
+  }
+
+  Serial.println("Track escrito correctamente");
+
+  return true;
+}
+
+int leerTrackDesdeTarjeta() {
+  MFRC522::StatusCode status;
+
+  byte buffer[18];
+  byte size = sizeof(buffer);
+
+  status = rfid.MIFARE_Read(
+    adminPage,
+    buffer,
+    &size
+  );
+
+  if (status != MFRC522::STATUS_OK) {
+    Serial.println("Error leyendo track");
+    return -1;
+  }
+
+  // Solo usamos los primeros 4 bytes
+  String trackStr = "";
+
+  for (int i = 0; i < 4; i++) {
+    if (buffer[i] != 0 && isDigit(buffer[i])) {
+      trackStr += (char)buffer[i];
     }
   }
 
-  return -1; // No encontrado
+  int track = trackStr.toInt();
+
+  Serial.print("Track leido: ");
+  Serial.println(track);
+
+  return track;
 }
