@@ -3,7 +3,9 @@
 #include <HardwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
-// En caso de quere cambiar de pines, el numero representa el GPIO no el numero Dn de la placa.
+// ---- Variables globales ----
+// RFID
+  // En caso de quere cambiar de pines, el numero representa el GPIO no el numero Dn de la placa.
 #define RST_PIN 22 // D22
 #define SS_PIN 5  // D5
 MFRC522 rfid(SS_PIN, RST_PIN);
@@ -12,10 +14,11 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 HardwareSerial dfSerial(2); // UART2
 DFRobotDFPlayerMini dfPlayer;
 
-// ---- Variables globales ----
+// Manejo de TAG presente
 String uidActual = "";
 bool tarjetaPresente = false;
 
+// Manejo de TAG retirada
 unsigned long ultimoPing = 0;
 unsigned long ultimaRespuesta = 0;
 
@@ -27,11 +30,18 @@ bool modoAdmin = false;
 String adminUID = "B4CEEF06";
 byte adminPage = 5;
 
+// Manejo de RGB (Catodo comun)
+#define LED_R 25
+#define LED_G 26
+#define LED_B 27
+
 // ---- Prototipos de funciones ----
 void detectarNuevaTarjeta();
 void verificarPresenciaRFID();
 String obtenerUID();
 void reproducirCancion();
+void breathingEffect();
+void apagarLED();
 // MODO ADMIN
 void manejarModoAdmin();
 bool escribirTrackEnTarjeta(int track);
@@ -55,6 +65,16 @@ void setup() {
   } else {
     Serial.println("Error DFPlayer");
   }
+
+  // RGB
+  ledcSetup(0, 5000, 8);
+  ledcAttachPin(LED_R, 0);
+
+  ledcSetup(1, 5000, 8);
+  ledcAttachPin(LED_G, 1);
+
+  ledcSetup(2, 5000, 8);
+  ledcAttachPin(LED_B, 2);
 }
 
 void loop() {
@@ -67,6 +87,11 @@ void loop() {
 
   if (tarjetaPresente){
     verificarPresenciaRFID();
+
+    // * Comenta esta linea y quita el else si no quieres agregar el led rgb.
+    breathingEffect();
+  } else {
+    apagarLED();
   }
 }
 
@@ -123,6 +148,7 @@ void verificarPresenciaRFID() {
   }
 
   if (millis() - ultimaRespuesta > timeoutRFID) {
+    // Detener la canción actual
     dfPlayer.stop();
 
     tarjetaPresente = false;
@@ -156,6 +182,75 @@ void reproducirCancion(String uidActual) {
   } else {
     Serial.println("No se encontró track en la tarjeta");
   }
+}
+
+void breathingEffect() {
+
+  static int brillo = 0;
+  static int direccionBrillo = 5;
+
+  static int colorIndex = 0;
+
+  brillo += direccionBrillo;
+
+  if (brillo >= 255 || brillo <= 0) {
+    direccionBrillo = -direccionBrillo;
+
+    // Cuando completa una respiración,
+    // cambia al siguiente color
+    if (brillo <= 0) {
+      colorIndex++;
+      if (colorIndex > 5) {
+        colorIndex = 0;
+      }
+    }
+  }
+
+  int r = 0;
+  int g = 0;
+  int b = 0;
+
+  switch (colorIndex) {
+
+    case 0: // rojo
+      r = brillo;
+      break;
+
+    case 1: // morado
+      r = brillo;
+      b = brillo;
+      break;
+
+    case 2: // azul
+      b = brillo;
+      break;
+
+    case 3: // cyan
+      g = brillo;
+      b = brillo;
+      break;
+
+    case 4: // verde
+      g = brillo;
+      break;
+
+    case 5: // amarillo
+      r = brillo;
+      g = brillo;
+      break;
+  }
+
+  ledcWrite(0, r);
+  ledcWrite(1, g);
+  ledcWrite(2, b);
+
+  delay(25);
+}
+
+void apagarLED() {
+  ledcWrite(0, 0);
+  ledcWrite(1, 0);
+  ledcWrite(2, 0);
 }
 
 // FUNCIONES MODO ADMIN
