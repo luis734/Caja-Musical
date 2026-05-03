@@ -44,7 +44,7 @@ Ahora al acercar esta tarjeta al lector reproducirá:
 012.mp3
 ```
 
-> ![NOTE]
+> [!NOTE]
 > Las Tags RFID solo reproducen la canción en modo normal.
 > En modo admin siempre se intentaran reprogramar.
 
