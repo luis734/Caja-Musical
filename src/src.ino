@@ -13,6 +13,8 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 // DFPlayer
 HardwareSerial dfSerial(2); // UART2
 DFRobotDFPlayerMini dfPlayer;
+unsigned long ultimoReplay = 0;
+int trackActual = -1;
 
 // Manejo de TAG presente
 String uidActual = "";
@@ -39,9 +41,10 @@ byte adminPage = 5;
 void detectarNuevaTarjeta();
 void verificarPresenciaRFID();
 String obtenerUID();
-void reproducirCancion();
+void reproducirCancion(String uidActual);
 void breathingEffect();
 void apagarLED();
+void verificarTerminoCancion();
 // MODO ADMIN
 void manejarModoAdmin();
 bool escribirTrackEnTarjeta(int track);
@@ -55,13 +58,11 @@ void setup() {
   rfid.PCD_Init();
 
   // DFPlayer
-  delay(2000);
   dfSerial.begin(9600, SERIAL_8N1, 16, 17); // RX2, TX2
-  delay(1000);
+  delay(3000);
 
   if (dfPlayer.begin(dfSerial)) {
     Serial.println("DFPlayer OK");
-    dfPlayer.volume(10);
   } else {
     Serial.println("Error DFPlayer");
   }
@@ -88,7 +89,10 @@ void loop() {
   if (tarjetaPresente){
     verificarPresenciaRFID();
 
-    // * Comenta esta linea y quita el else si no quieres agregar el led rgb.
+    // Detectamos si la canción termino para repetirla
+    verificarTerminoCancion();
+
+    // * Elimina esta linea y el else si no quieres agregar el led rgb.
     breathingEffect();
   } else {
     apagarLED();
@@ -153,6 +157,7 @@ void verificarPresenciaRFID() {
 
     tarjetaPresente = false;
     uidActual = "";
+    trackActual = -1;
   }
 }
 
@@ -172,16 +177,21 @@ String obtenerUID() {
 }
 
 void reproducirCancion(String uidActual) {
-  int track = leerTrackDesdeTarjeta();
-
-  if (track != -1) {
-    Serial.print("Reproduciendo track: ");
-    Serial.println(track);
-
-    dfPlayer.play(track);
-  } else {
-    Serial.println("No se encontró track en la tarjeta");
+//   Verificamos si ya había una canción guardada o hay que leer una nueva
+  if (trackActual == -1) {
+    trackActual = leerTrackDesdeTarjeta();
   }
+
+  if (trackActual != -1) {
+    Serial.print("Reproduciendo track: ");
+    Serial.println(trackActual);
+
+    dfPlayer.volume(15);
+    dfPlayer.play(trackActual);
+    return;
+  }
+
+  Serial.println("No se encontró track en la tarjeta");
 }
 
 void breathingEffect() {
@@ -253,7 +263,29 @@ void apagarLED() {
   ledcWrite(2, 0);
 }
 
-// FUNCIONES MODO ADMIN
+void verificarTerminoCancion() {
+  if (!dfPlayer.available()) return;
+
+  uint8_t type = dfPlayer.readType();
+  uint16_t value = dfPlayer.read();
+
+  if (type != DFPlayerPlayFinished) return;
+  // Si la canción ya termino, como la tarjeta sigue presente repetimos la canción
+
+  Serial.print("Canción terminada: ");
+  Serial.println(value);
+
+  // Definimos tiempo de debounce para evitar multiples reinicios
+  if (millis() - ultimoReplay < 200) return; 
+  
+  delay(100);
+
+  reproducirCancion(uidActual);
+
+  ultimoReplay = millis();
+}
+
+// * ==== FUNCIONES MODO ADMIN ====
 void manejarModoAdmin() {
 
   if (!rfid.PICC_IsNewCardPresent()) return;
