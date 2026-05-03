@@ -26,9 +26,21 @@ Actualmente el proyecto funciona sobre protoboard y está pensado como un proyec
 
 ---
 
+# ⏯️ Comportamiento en tiempo real
+
+### Tarjeta presente
+
+▶️ La música se reproduce continuamente
+
+### Tarjeta retirada
+
+⏹️ La música se detiene
+
+---
+
 # 🧩 Componentes Utilizados
 
-- ESP8266
+- ESP32
 - RC522 RFID Reader
 - DFPlayer Mini
 - Bocina de 3W
@@ -46,3 +58,58 @@ Dentro de:
 
 ```text
 /docs/conexiones
+```
+
+se incluyen:
+
+- Diagramas de conexión individuales
+- Diagrama completo del sistema
+- Archivos fuente de Fritzing
+- Listado de conexiones para una visualización mas sencilla
+
+> [!NOTE]  
+> Actualmente solo se realizó el diagrama de conexiones sobre protoboard.  
+> Aun no se realizó diseño para PCB o placa de impresión.
+
+---
+
+# 📄 Documentación
+
+Si necesitas saber como funciona algo mas especificamente puede revisar dentro de:
+
+```text
+/docs
+```
+
+En la raíz de esta carpeta encontrarás, información importante tipo:
+
+- ¿Cómo funciona el Modo Admin? (`modo_admin.md`)
+- ¿Cómo vincular las canciónes de la Micro SD y las RFID Tags? (`rfid_canciones.md`)
+- ¿Cómo solucionar errores comúnes que te puedas encontrar? (`problemas_comunes.md`)
+
+---
+
+# 📁 Estructura  del Proyecto
+
+```text
+├── docs/
+|   └── documentación_características.md
+│   └── conexiones/
+│       ├── diagramas individuales
+│       ├── diagrama completo
+│       ├── archivos Fritzing
+│       └── listado de conexiones
+│
+├── src/
+│   └── código fuente para ESP32
+│
+└── README.md
+```
+
+---
+
+# 📌 Nota Final
+
+Este proyecto nació como algo personal y experimental, pero está pensado para seguir creciendo hasta convertirse en una verdadera caja musical estilo tocadiscos interactivo.
+
+Mas que solo reproducir música, la idea es crear una experiencia física y visual alrededor de ella.
